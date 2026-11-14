@@ -1,0 +1,17 @@
+schema_version = "1.0.0"
+
+id = "caliper_bridge"
+version = "0.1.0"
+name = "Caliper Bridge"
+tagline = "Analyze and repair meshes for 3D printing with Caliper Nightly"
+maintainer = "SynrgStudio"
+type = "add-on"
+website = "https://caliper.synrgs.tech/nightly"
+tags = ["Mesh", "3D View"]
+
+blender_version_min = "4.2.0"
+
+license = ["SPDX:GPL-3.0-or-later"]
+
+[permissions]
+files = "Export objects for Caliper Nightly and import its repairs"
