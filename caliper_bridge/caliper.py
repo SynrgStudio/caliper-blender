@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Finding Caliper Nightly's command line and running it. No bpy here: the work runs in a thread."""
+"""Finding Caliper's command line and running it. No bpy here: the work runs in a thread."""
 import json
 import os
 import re
@@ -9,8 +9,12 @@ import sys
 import threading
 import time
 
-NIGHTLY_APP_ID = "{031082AF-6809-4C0E-8F0F-510BD50C3ABA}"
-CLI_NAME = "caliper-nightly-cli.exe" if sys.platform == "win32" else "caliper-nightly-cli"
+EXE = ".exe" if sys.platform == "win32" else ""
+# Caliper Nightly's command line (needs its key), then Caliper's (free, beside Caliper.exe since 0.9.8).
+# Each with its installer's AppId and its default folder.
+EDITIONS = (("caliper-nightly-cli" + EXE, "{031082AF-6809-4C0E-8F0F-510BD50C3ABA}", "CaliperNightly"),
+            ("caliper-cli" + EXE, "{8F89B8DC-67D6-49DF-A593-DC8FD3D604EC}", "CaliperView"))
+CLI_NAMES = tuple(name for name, _, _ in EDITIONS)
 ACTIVATE_PAGE = "https://activatecal.synrgs.tech/start"
 
 # The command line's exit codes (docs/CLI.md).
@@ -24,22 +28,23 @@ EXIT_TEXT = {
 }
 
 
-def _windows_install_folders():
+def _windows_candidates():
     import winreg
-    key = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\%s_is1" % NIGHTLY_APP_ID
-    for root in (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE):
-        try:
-            with winreg.OpenKey(root, key) as k:
-                folder, _ = winreg.QueryValueEx(k, "InstallLocation")
-                if folder:
-                    yield folder
-        except OSError:
-            pass
-    yield os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "CaliperNightly")
+    for name, app_id, default in EDITIONS:
+        key = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\%s_is1" % app_id
+        for root in (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE):
+            try:
+                with winreg.OpenKey(root, key) as k:
+                    folder, _ = winreg.QueryValueEx(k, "InstallLocation")
+                    if folder:
+                        yield os.path.join(folder, name)
+            except OSError:
+                pass
+        yield os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", default, name)
 
 
-def _linux_install_folders():
-    # install.sh writes a menu entry whose Exec is the window beside the command line.
+def _linux_candidates():
+    # Caliper Nightly's install.sh writes a menu entry whose Exec is the window beside the command line.
     share = os.environ.get("XDG_DATA_HOME") or os.path.expanduser("~/.local/share")
     folder = os.path.join(share, "applications")
     try:
@@ -52,24 +57,38 @@ def _linux_install_folders():
                 for line in f:
                     m = re.match(r'Exec="?([^"]+?)"?\s', line)
                     if m:
-                        yield os.path.dirname(m.group(1))
+                        yield os.path.join(os.path.dirname(m.group(1)), CLI_NAMES[0])
         except OSError:
             pass
 
 
+def usable(document):
+    """Whether this command line will work: Caliper always, Caliper Nightly while activated (or ended)."""
+    return bool(document) and document.get("activation") not in ("renew_required", "not_activated")
+
+
 def find_cli(override=""):
-    """The command line to run: the one the preferences name, else the installed Caliper Nightly's."""
+    """(path, version document) of the command line to run, or (None, None): the one the preferences name
+    (a folder holding both: the one that works), else the installed Caliper Nightly's while it works, else
+    Caliper's; else a Nightly that needs its key, so the panel can say so."""
     if override:
         path = os.path.abspath(bpy_path(override))
-        if os.path.isdir(path):
-            path = os.path.join(path, CLI_NAME)
-        return path if os.path.isfile(path) else None
-    folders = _windows_install_folders() if sys.platform == "win32" else _linux_install_folders()
-    for folder in folders:
-        path = os.path.join(folder, CLI_NAME)
-        if os.path.isfile(path):
-            return path
-    return shutil.which(CLI_NAME)
+        candidates = [os.path.join(path, n) for n in CLI_NAMES] if os.path.isdir(path) else [path]
+    else:
+        candidates = [*(_windows_candidates() if sys.platform == "win32" else _linux_candidates()),
+                      *filter(None, map(shutil.which, CLI_NAMES))]
+    found, seen = (None, None), set()
+    for path in candidates:
+        key = os.path.normcase(os.path.abspath(path))
+        if key in seen or not os.path.isfile(path):
+            continue
+        seen.add(key)
+        document = version(path)
+        if usable(document):
+            return path, document
+        if document and found[0] is None:
+            found = (path, document)
+    return found
 
 
 def bpy_path(path):
@@ -132,12 +151,12 @@ def failure(code, stderr):
     text = EXIT_TEXT.get(code, "Caliper ended with code %d" % code)
     detail = next((l for l in stderr.splitlines() if l.strip() and not l.startswith("Repairing")), "")
     if code == 9:
-        return text + ". Activate it in Caliper Nightly (key at %s)." % ACTIVATE_PAGE
+        return text + ". Activate it (key at %s), or install Caliper, which is free." % ACTIVATE_PAGE
     return text + (": " + detail if detail else ".")
 
 
 def analyze(cli, files, should_stop=None):
-    """analyze with markers; a Nightly without --markers (before #437) still gives the counts."""
+    """analyze with markers; a Caliper without --markers (before #437) still gives the counts."""
     code, doc, err = run(cli, ["analyze", *files, "--markers"], should_stop=should_stop)
     markers = True
     if code == 2 and "--markers" in err:

@@ -8,7 +8,7 @@
    is Optional), for every combination. An alternative is an object in that collection, or a
    collection inside it (several parts that go together).
 
-Each model is exported as it prints (modifiers applied, world space), repaired by Caliper Nightly and
+Each model is exported as it prints (modifiers applied, world space), repaired by Caliper and
 written to the output folder as a binary STL. Blender's objects are never changed."""
 import os
 import shutil
@@ -197,7 +197,7 @@ class CALIPER_OT_open_folder(Operator):
 class CALIPER_OT_export(Operator):
     bl_idname = "caliper.export"
     bl_label = "Export"
-    bl_description = "Export the models, checked or repaired by Caliper Nightly, to the output folder"
+    bl_description = "Export the models, checked or repaired by Caliper, to the output folder"
 
     @classmethod
     def poll(cls, context):
@@ -228,7 +228,7 @@ class CALIPER_OT_export(Operator):
                 from . import detect
                 detect()
             if not state.cli:
-                self.report({"ERROR"}, "Caliper Nightly was not found. Install it, or name its folder in the extension's preferences.")
+                self.report({"ERROR"}, "Caliper was not found. Install Caliper (free) or Caliper Nightly, or name its folder in the extension's preferences.")
                 return {"CANCELLED"}
         try:
             os.makedirs(folder, exist_ok=True)

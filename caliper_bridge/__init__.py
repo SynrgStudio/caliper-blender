@@ -1,9 +1,10 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Caliper Bridge: analyze, repair and export Blender objects with Caliper Nightly, from the N panel.
+"""Caliper Bridge: analyze, repair and export Blender objects with Caliper, from the N panel.
 
 Analyze exports the objects as they print (modifiers applied, world space) to a temporary STL, runs
-`caliper-nightly-cli analyze --markers` and draws each defect where Caliper found it. Repair runs
-`caliper-nightly-cli repair` on each object and imports the result as a new object; the original stays.
+`caliper-cli analyze --markers` (`caliper-nightly-cli` with Caliper Nightly) and draws each defect where
+Caliper found it. Repair runs `repair` on each object and imports the result as a new object; the original
+stays.
 Export (export.py) writes models to a folder four ways, each checked or repaired on the way."""
 import os
 import shutil
@@ -33,10 +34,7 @@ def detect():
         override = _prefs().cli_path
     except (KeyError, AttributeError):
         override = ""
-    state.cli = caliper.find_cli(override)
-    state.cli_version = caliper.version(state.cli) if state.cli else None
-    if state.cli and state.cli_version is None:
-        state.cli = None
+    state.cli, state.cli_version = caliper.find_cli(override)
     return None
 
 
@@ -48,8 +46,8 @@ class CaliperPreferences(AddonPreferences):
     bl_idname = __package__
 
     cli_path: StringProperty(
-        name="Caliper Nightly",
-        description="Folder of Caliper Nightly or its caliper-nightly-cli. Empty: the installed Caliper Nightly",
+        name="Caliper",
+        description="Folder of Caliper or Caliper Nightly, or its command line. Empty: the installed one",
         subtype="FILE_PATH", update=_changed_path)
     hide_original: BoolProperty(
         name="Hide the original after a repair", default=True,
@@ -65,7 +63,7 @@ class CaliperPreferences(AddonPreferences):
         if state.cli:
             layout.label(text="Using " + state.cli, icon="CHECKMARK")
         else:
-            layout.label(text="Caliper Nightly was not found. Install it, or name its folder above.", icon="ERROR")
+            layout.label(text="Caliper was not found. Install Caliper (free) or Caliper Nightly, or name its folder above.", icon="ERROR")
         layout.prop(self, "hide_original")
         layout.prop(self, "keep_cavities")
 
@@ -180,7 +178,7 @@ class _Modal:
         if not state.cli:
             detect()
         if not state.cli:
-            self.report({"ERROR"}, "Caliper Nightly was not found. Install it, or name its folder in the extension's preferences.")
+            self.report({"ERROR"}, "Caliper was not found. Install Caliper (free) or Caliper Nightly, or name its folder in the extension's preferences.")
             return {"CANCELLED"}
         self.folder = tempfile.mkdtemp(prefix="caliper-blender-")
         try:
@@ -219,7 +217,7 @@ class _Modal:
         if not state.cli:
             detect()
         if not state.cli:
-            self.report({"ERROR"}, "Caliper Nightly was not found.")
+            self.report({"ERROR"}, "Caliper was not found.")
             return {"CANCELLED"}
         self.folder = tempfile.mkdtemp(prefix="caliper-blender-")
         try:
@@ -246,7 +244,7 @@ def _redraw_panels(context):
 class CALIPER_OT_analyze(_Modal, Operator):
     bl_idname = "caliper.analyze"
     bl_label = "Analyze"
-    bl_description = "Analyze in Caliper Nightly and show its errors in the viewport"
+    bl_description = "Analyze in Caliper and show its errors in the viewport"
 
     @classmethod
     def poll(cls, context):
@@ -294,7 +292,7 @@ class CALIPER_OT_analyze(_Modal, Operator):
 class CALIPER_OT_repair(_Modal, Operator):
     bl_idname = "caliper.repair"
     bl_label = "Repair"
-    bl_description = ("Repair in Caliper Nightly. Each object is repaired on its own and comes back as a new object; "
+    bl_description = ("Repair in Caliper. Each object is repaired on its own and comes back as a new object; "
                       "the original is kept")
 
     @classmethod
@@ -389,12 +387,12 @@ class CALIPER_OT_cancel(Operator):
 class CALIPER_OT_detect(Operator):
     bl_idname = "caliper.detect"
     bl_label = "Look again"
-    bl_description = "Look for Caliper Nightly again"
+    bl_description = "Look for Caliper again"
 
     def execute(self, context):
         detect()
         if not state.cli:
-            self.report({"WARNING"}, "Caliper Nightly was not found.")
+            self.report({"WARNING"}, "Caliper was not found.")
         return {"FINISHED"}
 
 

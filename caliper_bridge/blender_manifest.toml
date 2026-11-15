@@ -1,12 +1,12 @@
 schema_version = "1.0.0"
 
 id = "caliper_bridge"
-version = "0.2.0"
+version = "0.3.0"
 name = "Caliper Bridge"
-tagline = "Check, repair and export print-ready models with Caliper Nightly"
+tagline = "Check, repair and export print-ready models with Caliper"
 maintainer = "SynrgStudio"
 type = "add-on"
-website = "https://caliper.synrgs.tech/nightly"
+website = "https://caliper.synrgs.tech"
 tags = ["Mesh", "3D View"]
 
 blender_version_min = "4.2.0"
@@ -14,4 +14,4 @@ blender_version_min = "4.2.0"
 license = ["SPDX:GPL-3.0-or-later"]
 
 [permissions]
-files = "Export objects for Caliper Nightly and import its repairs"
+files = "Export objects for Caliper and import its repairs"

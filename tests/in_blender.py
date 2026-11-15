@@ -36,8 +36,11 @@ def cube(name, location, scale=(1, 1, 1), rotation=(0, 0, 0), open_top=False):
 def main():
     package = "bl_ext.user_default.caliper_bridge"
     bpy.ops.preferences.addon_enable(module=package)
-    from bl_ext.user_default.caliper_bridge import state, mesh_io
+    from bl_ext.user_default.caliper_bridge import state, mesh_io, caliper
     prefs = bpy.context.preferences.addons[package].preferences
+    # A folder: the command line in it that works (Caliper's, beside a Nightly's that needs its key).
+    prefs.cli_path = os.path.dirname(os.environ["CALIPER_CLI"])
+    check(state.cli and caliper.usable(state.cli_version), "a folder gives the command line that works: %s" % state.cli)
     prefs.cli_path = os.environ["CALIPER_CLI"]
     check(state.cli and state.cli_version and state.cli_version.get("schema") == 1, "finds the command line: %s" % state.cli)
 

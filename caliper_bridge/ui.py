@@ -136,10 +136,10 @@ class VIEW3D_PT_caliper(Panel):
         if not state.cli:
             box = layout.box()
             box.alert = True
-            box.label(text="Caliper Nightly not found", icon="ERROR")
+            box.label(text="Caliper not found", icon="ERROR")
             col = box.column(align=True)
             col.alert = False
-            col.label(text="Install Caliper Nightly, or name its")
+            col.label(text="Install Caliper, or name its")
             col.label(text="folder in the preferences (gear above).")
             box.operator("caliper.detect", icon="FILE_REFRESH")
             return
@@ -149,7 +149,8 @@ class VIEW3D_PT_caliper(Panel):
         if info.get("activation") in ("renew_required", "not_activated"):
             box = layout.box()
             box.alert = True
-            box.label(text="Activate Caliper Nightly to use it here.", icon="ERROR")
+            box.label(text="Activate Caliper Nightly", icon="ERROR")
+            box.label(text="or install Caliper (free).")
 
 
 class VIEW3D_PT_caliper_check(Panel):
@@ -247,7 +248,7 @@ class VIEW3D_PT_caliper_check(Panel):
         if needs and not shown:
             col.label(text="Bodies touch or cross: Repair joins them.", icon="INFO")
         if needs and not result.get("markers"):
-            col.label(text="Update Caliper Nightly to see where.", icon="INFO")
+            col.label(text="Update Caliper to see where.", icon="INFO")
         col.separator()
         _pair(col, "Triangles", format(entry.get("triangles", 0), ","))
         size = entry.get("size_mm")
