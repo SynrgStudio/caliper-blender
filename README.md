@@ -2,7 +2,7 @@
 
 A Blender extension (4.2 and newer, made on 5.2) that checks and repairs objects with **Caliper Nightly**, from the N panel's **Caliper** tab.
 
-- **Analyze**: exports the objects as they print (modifiers applied, world space) to a temporary binary STL, runs `caliper-nightly-cli analyze --markers` and shows what Caliper found: the panel lists the errors per object, and the viewport draws each one where it is (open edges red, non-manifold orange, flipped faces purple, degenerate yellow, duplicate cyan, sealed cavities blue). The arrows move the view from one error to the next; **Select faces** selects them in Edit Mode.
+- **Analyze**: exports the objects as they print (modifiers applied, world space) to a temporary binary STL, runs `caliper-nightly-cli analyze --markers` and shows what Caliper found: the panel lists the errors per object, and the viewport draws each one where it is (open edges red, non-manifold orange, flipped faces purple, degenerate yellow, duplicate green, sealed cavities blue; the panel shows the same colors). The arrows move the view from one error to the next; **Select faces** selects them in Edit Mode.
 - **Repair**: runs `caliper-nightly-cli repair` on each object and imports the result as a new object, `<name>_repaired`, with the same transform and materials. The original is kept (hidden, by default).
 - **Selected** checks each selected object on its own; **Whole scene** checks every visible object together, as one print plate. Repair is always per object.
 
