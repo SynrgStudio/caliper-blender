@@ -156,7 +156,7 @@ def failure(code, stderr):
 
 
 def analyze(cli, files, should_stop=None):
-    """analyze with markers; a Caliper without --markers (before #437) still gives the counts."""
+    """analyze with markers; a Caliper without --markers (before 0.9.8) still gives the counts."""
     code, doc, err = run(cli, ["analyze", *files, "--markers"], should_stop=should_stop)
     markers = True
     if code == 2 and "--markers" in err:

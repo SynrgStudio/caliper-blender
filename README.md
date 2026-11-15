@@ -6,6 +6,13 @@ A Blender extension (4.2 and newer, made on 5.2) that checks and repairs objects
 - **Repair**: runs `caliper-cli repair` on each object and imports the result as a new object, `<name>_repaired`, with the same transform and materials. The original is kept (hidden, by default).
 - **Selected** checks each selected object on its own; **Whole scene** checks every visible object together, as one print plate. Repair is always per object.
 
+## Install
+
+1. Install **Caliper** 0.9.8 or newer (free) from https://caliper.synrgs.tech, or Caliper Nightly.
+2. Download `caliper_bridge-<version>.zip` from this repository's Releases.
+3. In Blender: Edit > Preferences > Get Extensions, the menu at the top right > **Install from Disk...**, and pick the zip. Don't unpack it.
+4. Press N in the 3D viewport and open the **Caliper** tab.
+
 ## Export
 
 The **Export** panel writes print-ready STL files to a folder (by default `Caliper export` beside the .blend), each one repaired by Caliper on the way (**Repair**), only checked (**Check**: written as it is, the panel says which need repair) or written without Caliper (**Export only**). Blender's objects are never changed.
@@ -35,7 +42,7 @@ python tests/run.py --cli <caliper-cli or caliper-nightly-cli> [--old-cli <one w
 python tests/run.py --cli <caliper-cli or caliper-nightly-cli> --window <screenshots folder>
 ```
 
-Both install the extension in a throwaway Blender profile. The first runs headless; the second opens Blender's window, clicks Analyze and Repair as a user would and saves screenshots: run it on a desktop nobody is using (on the Caliper PC, through `CaliperNext/tools/run_private_validation.py`).
+Both install the extension in a throwaway Blender profile. The first runs headless; the second opens Blender's window, clicks Analyze and Repair as a user would and saves screenshots: run it on a desktop nobody is using.
 
 ## License
 
