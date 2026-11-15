@@ -239,7 +239,7 @@ class VIEW3D_PT_caliper_check(Panel):
         shown = self._defects(col, entry.get("defects", {}))
         cavities = entry.get("cavities", {})
         if cavities.get("state") == "complete" and cavities.get("count"):
-            _pair(col, overlay.KINDS["cavity"][0], str(cavities["count"]), overlay.KINDS["cavity"][2])
+            _pair(col, overlay.KINDS["cavity"][0], str(cavities["count"]), overlay.KINDS["cavity"][2], factor=0.75)
             shown = True
         bodies = entry.get("bodies")
         if bodies and bodies > 1:
@@ -252,7 +252,7 @@ class VIEW3D_PT_caliper_check(Panel):
         _pair(col, "Triangles", format(entry.get("triangles", 0), ","))
         size = entry.get("size_mm")
         if size:
-            _pair(col, "Size", " × ".join(_length(context, v) for v in size))
+            col.label(text="Size  " + " × ".join(_length(context, v) for v in size))
         if "volume_mm3" in entry:
             _pair(col, "Volume", _volume(context, entry["volume_mm3"]) + ("" if entry.get("volume_exact") else " ≈"))
         for name in result["objects"]:
@@ -268,7 +268,7 @@ class VIEW3D_PT_caliper_check(Panel):
             n = defects.get(key, 0)
             if n:
                 label, _, icon = overlay.KINDS[kind]
-                _pair(col, label, format(n, ","), icon)
+                _pair(col, label, format(n, ","), icon, factor=0.75)
                 shown = True
         if not shown:
             col.label(text="No errors.", icon="CHECKMARK")
