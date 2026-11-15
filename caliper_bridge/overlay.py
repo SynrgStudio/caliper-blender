@@ -8,13 +8,13 @@ from gpu_extras.batch import batch_for_shader
 from . import state
 
 KINDS = {
-    # kind: (label, color)
-    "boundary": ("Open edges", (1.0, 0.18, 0.18, 1.0)),
-    "nonmanifold": ("Non-manifold edges", (1.0, 0.55, 0.0, 1.0)),
-    "winding": ("Flipped faces", (0.85, 0.25, 1.0, 1.0)),
-    "degenerate": ("Degenerate faces", (1.0, 0.9, 0.1, 1.0)),
-    "duplicate": ("Duplicate faces", (0.1, 0.85, 1.0, 1.0)),
-    "cavity": ("Sealed cavities", (0.3, 0.5, 1.0, 1.0)),
+    # kind: (label, color, the panel's icon of that color)
+    "boundary": ("Open edges", (1.0, 0.25, 0.25, 1.0), "SEQUENCE_COLOR_01"),
+    "nonmanifold": ("Non-manifold edges", (1.0, 0.6, 0.1, 1.0), "SEQUENCE_COLOR_02"),
+    "winding": ("Flipped faces", (0.75, 0.35, 1.0, 1.0), "SEQUENCE_COLOR_06"),
+    "degenerate": ("Degenerate faces", (1.0, 0.9, 0.2, 1.0), "SEQUENCE_COLOR_03"),
+    "duplicate": ("Duplicate faces", (0.35, 0.9, 0.35, 1.0), "SEQUENCE_COLOR_04"),
+    "cavity": ("Sealed cavities", (0.3, 0.55, 1.0, 1.0), "SEQUENCE_COLOR_05"),
 }
 
 _handle = None
@@ -60,11 +60,11 @@ def _draw():
     line_shader.uniform_float("lineWidth", 3.0)
     point_shader = gpu.shader.from_builtin("POINT_UNIFORM_COLOR")
     for kind, coords in lines.items():
-        line_shader.uniform_float("color", KINDS.get(kind, ("", (1, 1, 1, 1)))[1])
+        line_shader.uniform_float("color", KINDS.get(kind, ("", (1, 1, 1, 1), ""))[1])
         batch_for_shader(line_shader, "LINES", {"pos": coords}).draw(line_shader)
     gpu.state.point_size_set(7.0)
     for kind, coords in points.items():
-        point_shader.uniform_float("color", KINDS.get(kind, ("", (1, 1, 1, 1)))[1])
+        point_shader.uniform_float("color", KINDS.get(kind, ("", (1, 1, 1, 1), ""))[1])
         batch_for_shader(point_shader, "POINTS", {"pos": coords}).draw(point_shader)
     if focus:
         gpu.state.depth_test_set("NONE")

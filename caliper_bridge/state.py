@@ -6,7 +6,9 @@ cli_version = None  # its `version` document
 results = []        # one dict per analyzed or repaired target, in the order the panel shows them
 markers = {}        # object name -> {"inverse", "kinds", "a", "b", "center", "triangles", "polygons", "same_polygons"}
 focus = None        # (object name, marker index) the view went to
-job = None          # the running analysis or repair: {"title", "percent", "message"}
+job = None          # the running analysis, repair or export: {"title", "percent", "message", "work", "kind"}
+export = None       # the last export: {"folder", "rows", "counts", "written", "total", "running", ...}
+expanded = {}       # result label -> shown open or closed in the panel
 
 
 def clear():

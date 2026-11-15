@@ -121,8 +121,128 @@ def main():
     check(state.cli is None, "a wrong folder means not found")
 
 
+def box(name, center, size, collection):
+    mesh = bpy.data.meshes.new(name)
+    bm = bmesh.new()
+    bmesh.ops.create_cube(bm, size=size)
+    bm.to_mesh(mesh)
+    bm.free()
+    obj = bpy.data.objects.new(name, mesh)
+    collection.objects.link(obj)
+    obj.location = center
+    return obj
+
+
+def cli_json(*args):
+    import json
+    import subprocess
+    out = subprocess.run([os.environ["CALIPER_CLI"], *args], capture_output=True)
+    return json.loads(out.stdout.decode())
+
+
+def export_tests():
+    """The four ways to export, each through Caliper; the files checked with the command line."""
+    import tempfile
+    from bl_ext.user_default.caliper_bridge import state
+    package = "bl_ext.user_default.caliper_bridge"
+    prefs = bpy.context.preferences.addons[package].preferences
+    prefs.cli_path = os.environ["CALIPER_CLI"]
+    for o in list(bpy.data.objects):
+        bpy.data.objects.remove(o)
+    for c in list(bpy.data.collections):
+        bpy.data.collections.remove(c)
+    scene = bpy.context.scene
+    def collection(name, parent=None):
+        c = bpy.data.collections.new(name)
+        (parent or scene.collection).children.link(c)
+        return c
+    body, heads, weapon = collection("Body"), collection("Heads"), collection("Weapon")
+    head_c = collection("HeadC", heads)
+    torso = box("Torso", (0, 0, 0), 20, body)
+    arm = box("Arm", (12, 0, 0), 8, body)        # crosses the torso: Repair joins them
+    box("HeadA", (0, 0, 12), 8, heads)
+    head_b = box("HeadB", (0, 0, 13), 6, heads)
+    box("Top", (0, 0, 12), 8, head_c)
+    box("Horn", (0, 0, 17), 3, head_c)          # HeadC: two parts, one alternative
+    box("GunA", (17, 0, 0), 5, weapon)
+    box("SwordA", (17, 0, 4), 4, weapon)
+    head_b.hide_set(True)                       # hidden alternatives are exported too
+    bpy.context.view_layer.update()
+
+    settings = scene.caliper_export
+    folder = tempfile.mkdtemp(prefix="caliper-export-test-")
+    settings.folder = folder
+    def files():
+        return sorted(f for f in os.listdir(folder) if f.endswith(".stl"))
+    def clean_out():
+        for f in os.listdir(folder):
+            os.remove(os.path.join(folder, f))
+
+    # 4. Variants: Body always, one head, a weapon or none: 1 x 3 x 3.
+    body.caliper_role, heads.caliper_role, weapon.caliper_role = "CORE", "PICK", "OPTIONAL"
+    settings.mode, settings.action = "VARIANTS", "REPAIR"
+    check(bpy.ops.caliper.export() == {"FINISHED"}, "variants export runs")
+    expected = sorted("Body_%s%s.stl" % (h, w) for h in ("HeadA", "HeadB", "HeadC") for w in ("_GunA", "_SwordA", ""))
+    check(files() == expected, "variants: the 9 combinations, named by their parts: %s" % files())
+    rows = state.export["rows"]
+    check(len(rows) == 9 and all(r["status"] in ("repaired", "clean") for r in rows), "every variant repaired or clean: %s" % sorted({r["status"] for r in rows}))
+    doc = cli_json("analyze", os.path.join(folder, "Body_HeadC_GunA.stl"))
+    f = doc["files"][0]
+    check(not f["needs_repair"] and f["bodies"] == 1, "a variant comes out as one closed body")
+    info = cli_json("info", os.path.join(folder, "Body_HeadA.stl"))["files"][0]
+    check(abs(info["size_mm"][2] - 26) < 1e-3, "Body_HeadA has the head on top (height %s)" % info["size_mm"][2])
+
+    # 1. Combine the selected objects.
+    clean_out()
+    settings.mode, settings.combined_name = "COMBINE", "Torso and arm"
+    for o in bpy.context.view_layer.objects:
+        o.select_set(o.name in ("Torso", "Arm"))
+    bpy.ops.caliper.export()
+    check(files() == ["Torso and arm.stl"], "combine: one file named as asked: %s" % files())
+    f = cli_json("analyze", os.path.join(folder, "Torso and arm.stl"))["files"][0]
+    check(not f["needs_repair"] and f["bodies"] == 1 and state.export["rows"][0]["status"] == "repaired", "combine: repaired into one body")
+
+    # 2. Each selected object.
+    clean_out()
+    settings.mode = "OBJECTS"
+    bpy.ops.caliper.export()
+    check(files() == ["Arm.stl", "Torso.stl"], "each object: one file per object: %s" % files())
+    check(all(r["status"] == "clean" for r in state.export["rows"]), "each object: closed cubes come out clean")
+
+    # 3. Each ticked collection.
+    clean_out()
+    settings.mode = "COLLECTIONS"
+    body.caliper_batch = weapon.caliper_batch = True
+    bpy.ops.caliper.export()
+    check(files() == ["Body.stl", "Weapon.stl"], "collections: one file per ticked collection: %s" % files())
+    f = cli_json("info", os.path.join(folder, "Body.stl"))["files"][0]
+    check(f["triangles"] == 24 or state.export["rows"][0]["status"] == "repaired", "collections: Body holds torso and arm")
+
+    # Check only, Export only, scale and skipping existing files.
+    clean_out()
+    open_box = box("Open", (60, 0, 0), 10, scene.collection)
+    bm = bmesh.new(); bm.from_mesh(open_box.data); bm.faces.ensure_lookup_table(); bmesh.ops.delete(bm, geom=[bm.faces[0]], context="FACES_ONLY"); bm.to_mesh(open_box.data); bm.free()
+    for o in bpy.context.view_layer.objects:
+        o.select_set(o.name == "Open")
+    settings.mode, settings.action = "OBJECTS", "CHECK"
+    bpy.ops.caliper.export()
+    row = state.export["rows"][0]
+    check(row["status"] == "needs repair" and "open edges" in row["detail"] and files() == ["Open.stl"], "check: written as it is, said to need repair (%s)" % row["detail"])
+    settings.overwrite = False
+    bpy.ops.caliper.export()
+    check(state.export["rows"][0]["status"] == "skipped", "an existing file is skipped when replacing is off")
+    settings.overwrite, settings.action, settings.scale = True, "EXPORT", 2.0
+    bpy.ops.caliper.export()
+    f = cli_json("info", os.path.join(folder, "Open.stl"))["files"][0]
+    check(state.export["rows"][0]["status"] == "exported" and abs(f["size_mm"][0] - 20) < 1e-3, "export only, scale 2 doubles the size (%s)" % f["size_mm"])
+    settings.scale = 1.0
+    import shutil
+    shutil.rmtree(folder, ignore_errors=True)
+
+
 try:
     main()
+    export_tests()
 except Exception:
     traceback.print_exc()
     failures.append("exception")

@@ -6,6 +6,17 @@ A Blender extension (4.2 and newer, made on 5.2) that checks and repairs objects
 - **Repair**: runs `caliper-nightly-cli repair` on each object and imports the result as a new object, `<name>_repaired`, with the same transform and materials. The original is kept (hidden, by default).
 - **Selected** checks each selected object on its own; **Whole scene** checks every visible object together, as one print plate. Repair is always per object.
 
+## Export
+
+The **Export** panel writes print-ready STL files to a folder (by default `Caliper export` beside the .blend), each one repaired by Caliper on the way (**Repair**), only checked (**Check**: written as it is, the panel says which need repair) or written without Caliper (**Export only**). Blender's objects are never changed.
+
+1. **Combine selected**: the selected objects as one model (Caliper joins the parts that touch or cross).
+2. **Each selected object**: one file per object.
+3. **Each collection**: tick collections; each becomes one file with every object inside it.
+4. **Variants**: click each collection's role. **Core** goes in every model; **One of** gives one alternative per model; **Optional** is the same plus a model without it. An alternative is an object in that collection, or a collection inside it (parts that go together). `Body` Core, `Heads` (HeadA, HeadB, HeadC) One of and `Weapon` (GunA, SwordA) Optional give 9 files: `Body_HeadA_GunA.stl`, `Body_HeadA_SwordA.stl`, `Body_HeadA.stl`, … Hidden objects count; the roles are saved in the .blend.
+
+Before exporting, the panel shows how many models come out and can list their file names; above 50 it asks first, above 10,000 it refuses. An object used by many models is read once. The report lists every file with its result, problems first, and opens the folder. **Scale** multiplies the coordinates; **Replace files** off skips names already in the folder.
+
 It finds the installed Caliper Nightly by itself (Windows: its installer's registry entry; Linux: the menu entry `install.sh` writes, or `PATH`). The preferences can name another folder or `caliper-nightly-cli`. Nightly has to be activated. A Nightly older than `analyze --markers` (calipernext #437) still gives the counts, without drawing where.
 
 One Blender unit is one Caliper millimetre, as Blender's own STL export writes them.

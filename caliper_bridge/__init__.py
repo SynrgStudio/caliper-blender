@@ -1,9 +1,10 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Caliper Bridge: analyze and repair Blender objects with Caliper Nightly, from the N panel.
+"""Caliper Bridge: analyze, repair and export Blender objects with Caliper Nightly, from the N panel.
 
 Analyze exports the objects as they print (modifiers applied, world space) to a temporary STL, runs
 `caliper-nightly-cli analyze --markers` and draws each defect where Caliper found it. Repair runs
-`caliper-nightly-cli repair` on each object and imports the result as a new object; the original stays."""
+`caliper-nightly-cli repair` on each object and imports the result as a new object; the original stays.
+Export (export.py) writes models to a folder four ways, each checked or repaired on the way."""
 import os
 import shutil
 import tempfile
@@ -15,7 +16,7 @@ from bpy.app.handlers import persistent
 from bpy.props import BoolProperty, EnumProperty, StringProperty
 from bpy.types import AddonPreferences, Operator, Panel, PropertyGroup
 
-from . import caliper, mesh_io, overlay, state
+from . import caliper, export, mesh_io, overlay, state, ui
 
 PRINTABLE = {"MESH", "CURVE", "SURFACE", "META", "FONT"}
 
@@ -157,7 +158,7 @@ class _Work:
         self.value = None
         self.error = None
         self.function = function
-        state.job = {"title": title, "percent": None, "work": self}
+        state.job = {"title": title, "percent": None, "work": self, "kind": "check"}
         self.thread = threading.Thread(target=self._run, daemon=True)
         self.thread.start()
 
@@ -483,178 +484,23 @@ class CALIPER_OT_select_faces(Operator):
         return {"FINISHED"}
 
 
-# ---------------------------------------------------------------- the panel
-
-def _length(context, value):
-    units = context.scene.unit_settings
-    if units.system == "NONE":
-        return "%.3g" % value
-    return bpy.utils.units.to_string(units.system, "LENGTH", value * units.scale_length, precision=3)
-
-
-def _volume(context, value):
-    units = context.scene.unit_settings
-    if units.system == "NONE":
-        return "%.4g" % value
-    return bpy.utils.units.to_string(units.system, "VOLUME", value * units.scale_length ** 3, precision=3)
-
-
-DEFECTS = [
-    ("open_edges", "boundary"),
-    ("non_manifold_edges", "nonmanifold"),
-    ("inconsistent_winding", "winding"),
-    ("degenerate_faces", "degenerate"),
-    ("duplicate_faces", "duplicate"),
-]
-
-
-def _draw_defects(col, defects):
-    any_shown = False
-    for key, kind in DEFECTS:
-        n = defects.get(key, 0)
-        if n:
-            col.label(text="%s: %s" % (overlay.KINDS[kind][0], format(n, ",")), icon="DOT")
-            any_shown = True
-    return any_shown
-
-
-class VIEW3D_PT_caliper(Panel):
-    bl_space_type = "VIEW_3D"
-    bl_region_type = "UI"
-    bl_category = "Caliper"
-    bl_label = "Caliper"
-
-    def draw(self, context):
-        layout = self.layout
-        settings = context.scene.caliper
-        if not state.cli:
-            box = layout.box()
-            box.label(text="Caliper Nightly not found", icon="ERROR")
-            box.label(text="Install it, or name its folder in the")
-            box.label(text="extension's preferences.")
-            box.operator("caliper.detect", icon="FILE_REFRESH")
-            return
-        info = state.cli_version or {}
-        row = layout.row()
-        row.label(text="Caliper " + info.get("version", ""), icon="CHECKMARK")
-        if info.get("activation") in ("renew_required", "not_activated"):
-            layout.label(text="Activate Caliper Nightly to use it here.", icon="ERROR")
-
-        layout.prop(settings, "scope", expand=True)
-        row = layout.row(align=True)
-        row.scale_y = 1.4
-        row.operator("caliper.analyze", icon="VIEWZOOM")
-        row.operator("caliper.repair", icon="MODIFIER")
-
-        if state.job:
-            box = layout.box()
-            title = state.job["title"] + (": " + state.job["message"] if state.job.get("message") else "")
-            percent = state.job.get("percent")
-            if percent is not None and hasattr(box, "progress"):
-                box.progress(factor=percent, type="BAR", text="%s  %d%%" % (title, percent * 100))
-            else:
-                box.label(text=title + "...", icon="SORTTIME")
-            box.operator("caliper.cancel", icon="CANCEL")
-
-        for result in state.results:
-            self._draw_result(context, layout.box(), result)
-
-        if state.markers:
-            box = layout.box()
-            row = box.row(align=True)
-            row.prop(settings, "show_markers", toggle=True, icon="HIDE_OFF" if settings.show_markers else "HIDE_ON")
-            row.prop(settings, "markers_through", toggle=True, icon="XRAY")
-            every = _all_markers()
-            if every:
-                row = box.row(align=True)
-                row.operator("caliper.focus", text="", icon="TRIA_LEFT").step = -1
-                at = every.index(state.focus) + 1 if state.focus in every else 0
-                row.label(text="Error %d of %d" % (at, len(every)) if at else "%d errors drawn" % len(every))
-                row.operator("caliper.focus", text="", icon="TRIA_RIGHT").step = 1
-        if state.results:
-            layout.operator("caliper.clear", icon="X")
-
-    def _draw_result(self, context, box, result):
-        entry = result.get("entry")
-        if result.get("error"):
-            box.label(text=result["label"], icon="ERROR")
-            for line in _wrap(result["error"], 42):
-                box.label(text=line)
-            return
-        if "repair" in result:
-            doc = result.get("repair") or {}
-            if result.get("clean"):
-                box.label(text=result["label"], icon="CHECKMARK")
-                box.label(text="No errors found, nothing to repair.")
-                return
-            after = doc.get("after", {})
-            box.label(text=result["label"], icon="CHECKMARK" if not after.get("needs_repair") else "ERROR")
-            col = box.column(align=True)
-            col.label(text="Repaired from %s in %.1f s" % (result.get("from", ""), doc.get("seconds", 0)))
-            col.label(text="Triangles: %s → %s" % (format(doc.get("triangles_before", 0), ","), format(doc.get("triangles_after", 0), ",")))
-            if not _draw_defects(col, after.get("defects", {})):
-                col.label(text="No errors left.")
-            return
-        needs = entry.get("needs_repair")
-        box.label(text=result["label"], icon="ERROR" if needs else "CHECKMARK")
-        col = box.column(align=True)
-        shown = _draw_defects(col, entry.get("defects", {}))
-        cavities = entry.get("cavities", {})
-        if cavities.get("state") == "complete" and cavities.get("count"):
-            col.label(text="Sealed cavities: %d" % cavities["count"], icon="DOT")
-            shown = True
-        bodies = entry.get("bodies")
-        if bodies and bodies > 1:
-            col.label(text="Bodies: %d" % bodies, icon="DOT")
-        if not shown and not needs:
-            col.label(text="No errors found.")
-        elif not shown and needs:
-            col.label(text="Bodies that touch or cross: Repair joins them.")
-        if needs and not result.get("markers"):
-            col.label(text="Update Caliper Nightly to see where.", icon="INFO")
-        sub = box.column(align=True)
-        sub.scale_y = 0.8
-        sub.label(text="Triangles: %s" % format(entry.get("triangles", 0), ","))
-        size = entry.get("size_mm")
-        if size:
-            sub.label(text="Size: " + " × ".join(_length(context, v) for v in size))
-        if "volume_mm3" in entry:
-            sub.label(text="Volume: %s%s" % (_volume(context, entry["volume_mm3"]), "" if entry.get("volume_exact") else " (approx.)"))
-        if not entry.get("fully_checked") and cavities.get("state") != "complete":
-            sub.label(text="Cavities not fully checked.")
-        for name in result["objects"]:
-            group = state.markers.get(name)
-            if group and group["same_polygons"] and any(k != "cavity" for k in group["kinds"]):
-                op = box.operator("caliper.select_faces", text="Select faces" + ("" if len(result["objects"]) == 1 else ": " + name), icon="RESTRICT_SELECT_OFF")
-                op.object = name
-
-
-def _wrap(text, width):
-    words, line, out = text.split(), "", []
-    for w in words:
-        if line and len(line) + 1 + len(w) > width:
-            out.append(line)
-            line = w
-        else:
-            line = (line + " " + w).strip()
-    if line:
-        out.append(line)
-    return out
-
-
 @persistent
 def _on_load(_):
     state.clear()
+    state.export = None
+    state.expanded.clear()
 
 
 CLASSES = (CaliperPreferences, CaliperSettings, CALIPER_OT_analyze, CALIPER_OT_repair, CALIPER_OT_cancel,
-           CALIPER_OT_detect, CALIPER_OT_clear, CALIPER_OT_focus, CALIPER_OT_select_faces, VIEW3D_PT_caliper)
+           CALIPER_OT_detect, CALIPER_OT_clear, CALIPER_OT_focus, CALIPER_OT_select_faces)
 
 
 def register():
     for c in CLASSES:
         bpy.utils.register_class(c)
     bpy.types.Scene.caliper = bpy.props.PointerProperty(type=CaliperSettings)
+    export.register()
+    ui.register()
     bpy.app.handlers.load_post.append(_on_load)
     overlay.register()
     bpy.app.timers.register(detect, first_interval=0.1)
@@ -664,6 +510,8 @@ def unregister():
     overlay.unregister()
     if _on_load in bpy.app.handlers.load_post:
         bpy.app.handlers.load_post.remove(_on_load)
+    ui.unregister()
+    export.unregister()
     del bpy.types.Scene.caliper
     for c in reversed(CLASSES):
         bpy.utils.unregister_class(c)

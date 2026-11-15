@@ -44,12 +44,13 @@ def setup():
     bpy.ops.preferences.addon_enable(module=package)
     from bl_ext.user_default.caliper_bridge import state
     # The test can't click the Caliper tab: show the panel under the tab that is open.
-    from bl_ext.user_default import caliper_bridge
-    panel = caliper_bridge.VIEW3D_PT_caliper
-    bpy.utils.unregister_class(panel)
-    panel.bl_category = "Item"
-    panel.bl_order = -100
-    bpy.utils.register_class(panel)
+    from bl_ext.user_default.caliper_bridge import ui
+    for panel in reversed(ui.CLASSES[1:]):
+        bpy.utils.unregister_class(panel)
+    for panel in ui.CLASSES[1:]:
+        panel.bl_category = "Item"
+        panel.bl_order = -100
+        bpy.utils.register_class(panel)
     prefs = bpy.context.preferences.addons[package].preferences
     prefs.cli_path = ""
     print("installed Caliper Nightly found:", state.cli, (state.cli_version or {}).get("version"), flush=True)
@@ -68,6 +69,32 @@ def setup():
     bm.free()
     obj = bpy.data.objects.new("Statue", mesh)
     bpy.context.scene.collection.objects.link(obj)
+    # A model with variants, beside it: Body, a head (one of three), a weapon or none.
+    scene = bpy.context.scene
+    def collection(name, parent=None):
+        c = bpy.data.collections.new(name)
+        (parent or scene.collection).children.link(c)
+        return c
+    def part(name, center, size, c):
+        m = bpy.data.meshes.new(name)
+        b = bmesh.new()
+        bmesh.ops.create_cube(b, size=size)
+        b.to_mesh(m)
+        b.free()
+        o = bpy.data.objects.new(name, m)
+        c.objects.link(o)
+        o.location = center
+        o.hide_set(True)
+    body, heads, weapon = collection("Body"), collection("Heads"), collection("Weapon")
+    part("Torso", (40, 0, 0), 20, body); part("Arm", (52, 0, 0), 8, body)
+    part("HeadA", (40, 0, 12), 8, heads); part("HeadB", (40, 0, 13), 6, heads)
+    head_c = collection("HeadC", heads)
+    part("Top", (40, 0, 12), 8, head_c); part("Horn", (40, 0, 17), 3, head_c)
+    part("GunA", (57, 0, 0), 5, weapon); part("SwordA", (57, 0, 4), 4, weapon)
+    body.caliper_role, heads.caliper_role, weapon.caliper_role = "CORE", "PICK", "OPTIONAL"
+    settings = scene.caliper_export
+    settings.mode = "VARIANTS"
+    settings.folder = os.path.join(shots, "export")
     obj.select_set(True)
     bpy.context.view_layer.objects.active = obj
     window, area, region = view3d()
@@ -133,6 +160,27 @@ def main():
                     return 0.5
             elif phase["name"] == "done":
                 shot("4-repaired.png")
+                with bpy.context.temp_override(window=window, area=area, region=region):
+                    check(bpy.ops.caliper.export("INVOKE_DEFAULT") == {"RUNNING_MODAL"}, "Export runs in the background")
+                phase["name"] = "exporting"
+            elif phase["name"] == "exporting":
+                if state.job and not phase.get("export_shot") and state.export and state.export["rows"]:
+                    shot("5-exporting.png")
+                    phase["export_shot"] = True
+                if state.job is None:
+                    names = sorted(os.listdir(os.path.join(shots, "export")))
+                    check(len(names) == 9, "the 9 variants were written: %s" % names)
+                    phase["name"] = "exported"
+                    return 0.5
+            elif phase["name"] == "exported":
+                shot("6-exported.png")
+                bpy.context.scene.caliper_export.show_names = True
+                for r in area.regions:
+                    r.tag_redraw()
+                phase["name"] = "names"
+                return 0.5
+            elif phase["name"] == "names":
+                shot("7-names.png")
                 finish()
         except Exception:
             traceback.print_exc()
