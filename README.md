@@ -39,4 +39,8 @@ Both install the extension in a throwaway Blender profile. The first runs headle
 
 ## License
 
-GPL-3.0-or-later, as Blender requires of extensions. Caliper itself is a separate program: the extension only runs it and reads its files.
+Copyright (C) 2026 SynrgStudio.
+
+This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version. It is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details: the full text is in [LICENSE](LICENSE), and the extension's package carries a copy.
+
+GPL-3.0-or-later, as Blender requires of extensions. Caliper itself is a separate program with its own license: the extension only runs it and reads its files.
